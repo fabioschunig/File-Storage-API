@@ -16,10 +16,10 @@ services:
     container_name: db-file-storage-api
     restart: always
     environment:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DATABASE: file_storage_api
-      MYSQL_USER: file_storage_api
-      MYSQL_PASSWORD: file_storage_api
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
     ports:
       - "3306:3306"
     volumes:

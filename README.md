@@ -46,7 +46,8 @@ A API estará disponível em `http://localhost:8080/`
 Crie um arquivo `.env` na raiz do projeto:
 
 ```env
-# Database
+# Database (Docker)
+DB_ROOT_PASSWORD=root
 DB_HOST=db
 DB_NAME=file_storage_api
 DB_USER=file_storage_api
