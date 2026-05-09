@@ -1,0 +1,29 @@
+services:
+
+  web:
+    build: .
+    container_name: file-storage-api
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+      - ./storage:/var/www/html/storage
+    depends_on:
+      - db
+
+  db:
+    image: mariadb:latest
+    container_name: db-file-storage-api
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: file_storage_api
+      MYSQL_USER: file_storage_api
+      MYSQL_PASSWORD: file_storage_api
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:
