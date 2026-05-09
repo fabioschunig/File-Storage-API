@@ -13,3 +13,8 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 # Configurar DocumentRoot para /public
 RUN sed -i 's|/var/www/html|/var/www/html/public|g' /etc/apache2/sites-available/000-default.conf
 RUN a2enmod rewrite
+
+# Criar diretório storage com permissões corretas
+RUN mkdir -p /var/www/html/storage && \
+    chown -R www-data:www-data /var/www/html/storage && \
+    chmod -R 755 /var/www/html/storage
