@@ -6,3 +6,6 @@
 
 #vendor directory
 /vendor/
+
+#uploads em storage
+/storage/*.pdf
