@@ -71,14 +71,17 @@ class FileController
             );
 
             $metadata = $parsedBody['metadata'] ?? null;
+            $downloadUrl = $this->buildDownloadUrl($fileRecord->getStoredName());
 
             return $this->jsonResponse($response, [
                 'success' => true,
                 'data' => [
                     'id' => $fileRecord->getId(),
                     'original_name' => $fileRecord->getOriginalName(),
+                    'stored_name' => $fileRecord->getStoredName(),
                     'mime_type' => $fileRecord->getMimeType(),
                     'size' => $fileRecord->getSize(),
+                    'download_url' => $downloadUrl,
                     'created_at' => $fileRecord->getCreatedAt(),
                     'metadata' => $metadata,
                 ]
@@ -93,13 +96,23 @@ class FileController
 
     public function download(ServerRequestInterface $request, ResponseInterface $response, array $args): ResponseInterface
     {
-        $id = (int) ($args['id'] ?? 0);
-        $fileRecord = $this->fileService->getFileById($id);
+        $storedName = $args['filename'] ?? '';
+
+        if (empty($storedName)) {
+            return $this->jsonResponse($response, [
+                'success' => false,
+                'error' => 'Filename not provided',
+                'message' => 'Please specify a filename. Usage: /api/files/{filename}',
+                'example' => '/api/files/publicacao-mural-4.pdf'
+            ], 400);
+        }
+
+        $fileRecord = $this->fileService->getFileByStoredName($storedName);
 
         if ($fileRecord === null) {
             return $this->jsonResponse($response, [
                 'success' => false,
-                'error' => 'File not found'
+                'error' => 'File not found: ' . $storedName
             ], 404);
         }
 
@@ -114,7 +127,7 @@ class FileController
 
         $sanitizedFilename = $this->fileValidator->sanitizeFilename($fileRecord->getOriginalName());
         $dispositionHeader = $this->buildContentDisposition($sanitizedFilename);
-        
+
         $response = $response
             ->withHeader('Content-Type', $fileRecord->getMimeType())
             ->withHeader('Content-Length', (string) $fileRecord->getSize())
@@ -167,7 +180,7 @@ class FileController
         $utf8Filename = urlencode($filename);
         // Replace certain characters according to RFC 5987
         $utf8Filename = str_replace('%', '%25', $utf8Filename);
-        
+
         return sprintf(
             'attachment; filename="%s"; filename*=UTF-8\'\' %s',
             $filename,
@@ -187,5 +200,12 @@ class FileController
             UPLOAD_ERR_EXTENSION => 'Upload stopped by extension',
             default => 'Unknown error',
         };
+    }
+
+    private function buildDownloadUrl(string $storedName): string
+    {
+        // Build the download URL relative to the API base path
+        // Uses the stored filename (sanitized name with ID suffix)
+        return sprintf('/api/files/%s', $storedName);
     }
 }

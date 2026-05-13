@@ -33,12 +33,24 @@ class FileValidator
         ];
 
         $this->allowedExtensions = $allowedExtensions ?? [
-            'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg',
+            'jpg',
+            'jpeg',
+            'png',
+            'gif',
+            'webp',
+            'svg',
             'pdf',
-            'txt', 'csv',
-            'doc', 'docx',
-            'xls', 'xlsx',
-            'zip', 'rar', '7z', 'tar', 'gz',
+            'txt',
+            'csv',
+            'doc',
+            'docx',
+            'xls',
+            'xlsx',
+            'zip',
+            'rar',
+            '7z',
+            'tar',
+            'gz',
         ];
 
         $this->maxFileSize = $maxFileSize ?? 50 * 1024 * 1024; // 50MB default
@@ -88,25 +100,107 @@ class FileValidator
     private function hasPathTraversal(string $filename): bool
     {
         return str_contains($filename, '..') ||
-               str_contains($filename, '/') ||
-               str_contains($filename, '\\') ||
-               str_contains($filename, "\0");
+            str_contains($filename, '/') ||
+            str_contains($filename, '\\') ||
+            str_contains($filename, "\0");
     }
 
     public function sanitizeFilename(string $filename): string
     {
-        // Remove path traversal characters
-        $filename = str_replace(['..', '/', '\\', "\0"], '', $filename);
-        
+        // Convert accents and special characters to ASCII equivalents
+        // Using transliterator for better support of Latin characters
+        if (function_exists('transliterator_transliterate')) {
+            // First decompose accented characters
+            $filename = transliterator_transliterate('NFKD', $filename);
+            // Then remove combining marks (accents)
+            $filename = preg_replace('/[\p{Mn}]/u', '', $filename);
+        } else {
+            // Fallback: manual mapping of common accented characters
+            $replacements = [
+                'ç' => 'c',
+                'Ç' => 'c',
+                'á' => 'a',
+                'Á' => 'a',
+                'à' => 'a',
+                'À' => 'a',
+                'ã' => 'a',
+                'Ã' => 'a',
+                'â' => 'a',
+                'Â' => 'a',
+                'é' => 'e',
+                'É' => 'e',
+                'è' => 'e',
+                'È' => 'e',
+                'ê' => 'e',
+                'Ê' => 'e',
+                'í' => 'i',
+                'Í' => 'i',
+                'ì' => 'i',
+                'Ì' => 'i',
+                'î' => 'i',
+                'Î' => 'i',
+                'ó' => 'o',
+                'Ó' => 'o',
+                'ò' => 'o',
+                'Ò' => 'o',
+                'õ' => 'o',
+                'Õ' => 'o',
+                'ô' => 'o',
+                'Ô' => 'o',
+                'ú' => 'u',
+                'Ú' => 'u',
+                'ù' => 'u',
+                'Ù' => 'u',
+                'û' => 'u',
+                'Û' => 'u',
+            ];
+            $filename = strtr($filename, $replacements);
+        }
+
+        // Convert to lowercase
+        $filename = strtolower($filename);
+
+        // Remove path traversal and dangerous characters first (before generic replacement)
+        $filename = str_replace(['..', '/', '\\', '|', "\0", "\t", "\n", "\r"], '', $filename);
+
         // Remove control characters
         $filename = preg_replace('/[\x00-\x1F\x7F]/', '', $filename);
-        
-        // Remove null bytes
-        $filename = str_replace("\0", '', $filename);
-        
-        // Trim whitespace
-        $filename = trim($filename);
-        
+
+        // Replace spaces with hyphens
+        $filename = str_replace(' ', '-', $filename);
+
+        // Replace remaining special characters (keep only alphanumeric, dots, hyphens, underscores)
+        $filename = preg_replace('/[^a-z0-9._-]/', '', $filename);
+
+        // Clean up multiple consecutive hyphens/underscores
+        $filename = preg_replace('/[-_]{2,}/', '-', $filename);
+
+        // Trim hyphens and underscores from edges
+        $filename = trim($filename, '-_');
+
         return $filename;
+    }
+
+    public function generateSanitizedFilenameWithId(string $filename, int $id): string
+    {
+        // Remove path separators that might exist in the filename
+        // This handles cases where the filename contains path elements from Windows or Unix
+        $filename = str_replace(['/', '\\'], '', $filename);
+
+        // Now safely extract the extension
+        $pathInfo = pathinfo($filename);
+        $basename = $pathInfo['filename'] ?? 'file';
+        $extension = $pathInfo['extension'] ?? '';
+
+        // Sanitize the basename
+        $sanitizedBasename = $this->sanitizeFilename($basename);
+
+        // Combine with ID and extension
+        $finalName = $sanitizedBasename . '-' . $id;
+        if (!empty($extension)) {
+            $finalName .= '.' . strtolower($extension);
+        }
+
+        return $finalName;
     }
 }

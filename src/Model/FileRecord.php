@@ -87,4 +87,9 @@ class FileRecord
     {
         $this->id = $id;
     }
+
+    public function setStoredName(string $storedName): void
+    {
+        $this->storedName = $storedName;
+    }
 }

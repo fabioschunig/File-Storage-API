@@ -15,20 +15,31 @@ return function (App $app): void {
         $response->getBody()->write(json_encode([
             'name' => 'File Storage API',
             'version' => '1.0.0',
-            'endpoints' => [
-                'POST /api/files' => 'Upload a file',
-                'GET /api/files' => 'List all files',
-                'GET /api/files/{id}' => 'Download a file by ID'
-            ],
-            'authentication' => 'API Key required via X-API-Key header'
+            'authentication' => 'API Key required only for upload and list operations'
         ]));
         return $response->withHeader('Content-Type', 'application/json');
     });
 
-    // API Routes (protected by API Key)
+    // Public route - handle /api/files without filename (returns error message)
+    $handleFilesWithoutFilename = function ($request, $response) {
+        $response->getBody()->write(json_encode([
+            'success' => false,
+            'error' => 'Filename not provided',
+            'message' => 'Please specify a filename. Usage: /api/files/{filename}'
+        ], JSON_PRETTY_PRINT));
+        return $response
+            ->withStatus(400)
+            ->withHeader('Content-Type', 'application/json');
+    };
+
+    $app->get('/api/files', $handleFilesWithoutFilename);
+    $app->get('/api/files/', $handleFilesWithoutFilename);
+
+    // Protected routes (require API Key) - Upload
     $app->group('/api', function ($group) use ($fileController) {
         $group->post('/files', [$fileController, 'upload']);
-        $group->get('/files', [$fileController, 'list']);
-        $group->get('/files/{id}', [$fileController, 'download']);
     })->add($apiKeyMiddleware);
+
+    // Public route (no authentication required) - Download by filename
+    $app->get('/api/files/{filename}', [$fileController, 'download']);
 };

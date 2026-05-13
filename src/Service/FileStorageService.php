@@ -12,35 +12,56 @@ class FileStorageService
 {
     private FileRepository $repository;
     private string $storagePath;
+    private FileValidator $fileValidator;
 
     public function __construct()
     {
         $this->repository = new FileRepository();
         $this->storagePath = AppConfig::getInstance()->getStoragePath();
+        $this->fileValidator = new FileValidator();
         $this->ensureStoragePathExists();
     }
 
     public function storeFile(string $originalName, string $tempPath, string $mimeType, int $size): FileRecord
     {
-        $storedName = $this->generateStoredName($originalName);
-        $destination = $this->storagePath . '/' . $storedName;
+        // First, store with a temporary name
+        $tempStoredName = $this->generateStoredName($originalName);
+        $tempDestination = $this->storagePath . '/' . $tempStoredName;
 
-        if (!move_uploaded_file($tempPath, $destination)) {
-            if (!rename($tempPath, $destination)) {
+        if (!move_uploaded_file($tempPath, $tempDestination)) {
+            if (!rename($tempPath, $tempDestination)) {
                 throw new \RuntimeException('Failed to store file');
             }
         }
 
+        // Save file record to get the ID
         $fileRecord = new FileRecord(
             null,
             $originalName,
-            $storedName,
+            $tempStoredName,
             $mimeType,
             $size
         );
 
         $id = $this->repository->save($fileRecord);
         $fileRecord->setId($id);
+
+        // Generate final name with sanitization and ID
+        $finalStoredName = $this->fileValidator->generateSanitizedFilenameWithId($originalName, $id);
+        $finalDestination = $this->storagePath . '/' . $finalStoredName;
+
+        // Rename the file to final name
+        if (!rename($tempDestination, $finalDestination)) {
+            // If rename fails, try to delete the temporary file and fail gracefully
+            if (file_exists($tempDestination)) {
+                unlink($tempDestination);
+            }
+            throw new \RuntimeException('Failed to rename file to final name');
+        }
+
+        // Update the file record with the final name
+        $fileRecord->setStoredName($finalStoredName);
+        $this->repository->update($fileRecord);
 
         return $fileRecord;
     }
@@ -50,25 +71,30 @@ class FileStorageService
         return $this->repository->findById($id);
     }
 
+    public function getFileByStoredName(string $storedName): ?FileRecord
+    {
+        return $this->repository->findByStoredName($storedName);
+    }
+
     public function getFilePath(FileRecord $fileRecord): string
     {
         $storedName = $fileRecord->getStoredName();
-        
+
         // Security: validate that stored name doesn't contain path traversal
         if (str_contains($storedName, '/') || str_contains($storedName, '\\') || str_contains($storedName, '..')) {
             throw new \RuntimeException('Invalid stored file name detected');
         }
-        
+
         $fullPath = $this->storagePath . '/' . $storedName;
-        
+
         // Ensure the real path is within storage directory
         $realPath = realpath($fullPath);
         $realStoragePath = realpath($this->storagePath);
-        
+
         if ($realPath === false || !str_starts_with($realPath, $realStoragePath)) {
             throw new \RuntimeException('File path is outside storage directory');
         }
-        
+
         return $fullPath;
     }
 

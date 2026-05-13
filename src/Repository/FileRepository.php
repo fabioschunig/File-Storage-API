@@ -30,6 +30,19 @@ class FileRepository
         return $data ? FileRecord::fromArray($data) : null;
     }
 
+    public function findByStoredName(string $storedName): ?FileRecord
+    {
+        $stmt = $this->db->prepare('
+            SELECT id, original_name, stored_name, mime_type, size, created_at
+            FROM files
+            WHERE stored_name = :stored_name
+        ');
+        $stmt->execute(['stored_name' => $storedName]);
+        $data = $stmt->fetch();
+
+        return $data ? FileRecord::fromArray($data) : null;
+    }
+
     public function findAll(int $limit = 100, int $offset = 0): array
     {
         $stmt = $this->db->prepare('
@@ -71,6 +84,27 @@ class FileRepository
     {
         $stmt = $this->db->prepare('DELETE FROM files WHERE id = :id');
         return $stmt->execute(['id' => $id]);
+    }
+
+    public function update(FileRecord $fileRecord): bool
+    {
+        if ($fileRecord->getId() === null) {
+            throw new \InvalidArgumentException('Cannot update file record without an ID');
+        }
+
+        $stmt = $this->db->prepare('
+            UPDATE files
+            SET original_name = :original_name, stored_name = :stored_name,
+                mime_type = :mime_type, size = :size
+            WHERE id = :id
+        ');
+        return $stmt->execute([
+            'id' => $fileRecord->getId(),
+            'original_name' => $fileRecord->getOriginalName(),
+            'stored_name' => $fileRecord->getStoredName(),
+            'mime_type' => $fileRecord->getMimeType(),
+            'size' => $fileRecord->getSize(),
+        ]);
     }
 
     public function count(): int
